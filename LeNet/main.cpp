@@ -22,14 +22,35 @@ void Lsb2Msb(type &a)
 void MnistToMat(char *nameData, char *nameLabel, vector<Mat> &trainImages, std::vector<uint> &labels, bool display = false);
 void VectorMat2VectorFloat(vector<Mat> img, vector<uint> lab, vector<float> &data, vector<float> &label);
 
-int main()
+const String keys =
+"{Aide h usage ? help  |     | Afficher ce message   }"
+"{solver or model prototxt s    |lenet_solverleger.prototxt     | solver param }"
+"{train model t     |1     | train model }"
+"{ m model name    |     | model name }"
+"{ b binary name    |     | binary name }"
+;
+
+int main(int argc, char **argv)
 {
+    CommandLineParser parser(argc, argv, keys);
+    if (parser.has("help"))
+    {
+        parser.printMessage();
+        return 0;
+    }
+    String solverParamName = parser.get<String>("s");
+    bool TrainIsNeeded;
+    if (parser.get<int>("t"))
+        TrainIsNeeded = true;
+    else
+        TrainIsNeeded = false;
+
+
     caffe::Caffe::set_mode(caffe::Caffe::CPU);
     vector<Mat> trainImages;
     vector<uint> trainLabels;
     vector<Mat> testImages;
     vector<uint> testLabels;
-    bool TrainIsNeeded = false;
 
     cv::ocl::setUseOpenCL(false);
     MnistToMat("G:\\Lib\\caffeOLD\\data\\mnist\\train-images-idx3-ubyte", "G:\\Lib\\caffeOLD\\data\\mnist\\train-labels-idx1-ubyte",trainImages, trainLabels);
@@ -47,11 +68,10 @@ int main()
 
     VectorMat2VectorFloat(trainImages, trainLabels,data,label);
     VectorMat2VectorFloat(testImages, testLabels, dataTest, labelTest);
+    caffe::SolverParameter solver_param;
     if (TrainIsNeeded)
     {
-        caffe::SolverParameter solver_param;
-        caffe::ReadSolverParamsFromTextFileOrDie("lenet_solver.prototxt", &solver_param);
-
+        caffe::ReadSolverParamsFromTextFileOrDie(solverParamName, &solver_param);
         boost::shared_ptr<caffe::Solver<float> > solver(caffe::SolverRegistry<float>::CreateSolver(solver_param));
         caffe::MemoryDataLayer<float> *dataLayer_trainnet = (caffe::MemoryDataLayer<float> *) (solver->net()->layer_by_name("data").get());
         caffe::MemoryDataLayer<float> *dataLayer_testnet_ = (caffe::MemoryDataLayer<float> *) (solver->test_nets()[0]->layer_by_name("test_inputdata").get());
@@ -65,13 +85,13 @@ int main()
 
         caffe::NetParameter net_param;
         solver->net()->ToProto(&net_param);
-        caffe::WriteProtoToBinaryFile(net_param, "model.binary");
-        caffe::WriteProtoToTextFile(net_param, "model.txt");
+        caffe::WriteProtoToBinaryFile(net_param, solver_param.net() +".binary");
+        caffe::WriteProtoToTextFile(net_param, solver_param.net() +".txt");
         
 
 
         boost::shared_ptr<caffe::Net<float> > testnet;
-        testnet.reset(new caffe::Net<float>("lenet_train_test.prototxt", caffe::TEST));
+        testnet.reset(new caffe::Net<float>(solver_param.net(), caffe::TEST));
 
         testnet->ShareTrainedLayersWith(solver->net().get());
         caffe::MemoryDataLayer<float> *dataLayer_testnet = (caffe::MemoryDataLayer<float> *) (testnet->layer_by_name("test_inputdata").get());
@@ -90,8 +110,18 @@ int main()
     }
 
 
-    String modelTxt("lenet.prototxt");
-    String modelBin("model.binary");
+    String modelTxt;// ("lenetleger.prototxt");
+    String modelBin;// ("lenetleger.binary");
+    if (TrainIsNeeded)
+    {
+        modelTxt = solver_param.net() + ".prototxt";
+        modelBin = solver_param.net() + ".binary";
+    }
+    else
+    {
+        modelTxt = parser.get<String>("m");;
+        modelBin = parser.get<String>("b");;
+    }
 
     dnn::Net net;
     try {
@@ -104,17 +134,33 @@ int main()
             std::cerr << "Can't load network by using the following files: " << std::endl;
             std::cerr << "prototxt:   " << modelTxt << std::endl;
             std::cerr << "caffemodel: " << modelBin << std::endl;
-            std::cerr << "bvlc_googlenet.caffemodel can be downloaded here:" << std::endl;
-            std::cerr << "http://dl.caffe.berkeleyvision.org/bvlc_googlenet.caffemodel" << std::endl;
             exit(-1);
         }
     }
-    Mat img = testImages[0];
+
+    int ind = 4;
+    Mat img = testImages[ind];
     
     Mat inputBlob = dnn::blobFromImage(img, 1 / 256.0,Size(),-0.1);
     net.setInput(inputBlob, "data");        //set the network input
     Mat prob = net.forward();         //compute output
     cout << prob << "\n";
+    vector<Mat> b;
+    net.setInput(inputBlob, "data");        //set the network input
+    Ptr<dnn::Layer> l = net.getLayer("conv1");
+    vector<Mat> bb = l->blobs;
+    net.forward(b,"conv1");
+    for (int i = 0; i < bb[1].rows; i++)
+    {
+        Mat x(24, 24, CV_32FC1, b[0].data + 24 * 24 * 4 * i);
+        Mat y;
+        normalize(x, y, 255, 0, NORM_MINMAX);
+        Mat z;
+        y.convertTo(z, CV_8U);
+        imshow("z", z);
+        waitKey(0);
+    }
+    cout << labelTest[ind];
     return 0;
 }
 

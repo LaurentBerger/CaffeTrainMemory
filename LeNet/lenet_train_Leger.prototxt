@@ -12,7 +12,7 @@ layer {
   }
   memory_data_param 
   {
-    batch_size: 64 
+    batch_size: 50 
     channels: 1 
     height: 28
     width: 28 
@@ -31,7 +31,7 @@ layer {
   }
   memory_data_param 
   {
-    batch_size: 64 
+    batch_size: 50
     channels: 1 
     height: 28
     width: 28 
@@ -49,7 +49,7 @@ layer {
     lr_mult: 2
   }
   convolution_param {
-    num_output: 20
+    num_output: 10
     kernel_size: 5
     stride: 1
     weight_filler {
@@ -83,7 +83,7 @@ layer {
     lr_mult: 2
   }
   convolution_param {
-    num_output: 50
+    num_output: 25
     kernel_size: 5
     stride: 1
     weight_filler {
