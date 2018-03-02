@@ -13,6 +13,7 @@ find_package(Caffe  REQUIRED)
 FOREACH( mesdossiers 
        LeNet
        LeNetAndShape
+	 LeNetDisplayStruct
     )
 
     ADD_SUBDIRECTORY(${mesdossiers})
