@@ -96,7 +96,8 @@ int main(int argc, char **argv)
     for (auto &nom : nomCouche)
     {
         const boost::shared_ptr<caffe::Layer<float> > &conv_layer= reseau->layer_by_name(nom);
-        fs << "Nom" << nom;
+        fs <<  nom << "[";
+        fs << "{";
         fs << "Type" << conv_layer->type();
         if (conv_layer->blobs().size() > 0)
         {
@@ -105,11 +106,12 @@ int main(int argc, char **argv)
             if (fs.isOpened())
             {
                 vector<int> s = weight->shape();
+                fs << "Shape" << s;
                 for (int i = 0; i < s[0]; i++)
                 {
                     for (int j = 0; j < s[1]; j++)
                     {
-                        fs << format("w%d%d", i, j);
+                        fs << format("M%dX%d", i, j);
                         Mat a(s[2], s[3], CV_32FC1, conv_weight + s[2] * s[3] * s[1] * i + s[2] * s[3] * j);
                         fs << a;
                     }
@@ -133,6 +135,8 @@ int main(int argc, char **argv)
             }
 
         }
+        fs << "}";
+        fs << "]";
 
     }
 
