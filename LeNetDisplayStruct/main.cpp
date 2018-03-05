@@ -54,15 +54,15 @@ int main(int argc, char **argv)
     caffe::NetParameter netCaffe;
     caffe::NetParameter netBinary;
 
-    shared_ptr<caffe::Net<float> > net_;
-    net_.reset(new caffe::Net<float>(modelTxt, caffe::TEST));
-    net_->CopyTrainedLayersFrom(modelBin);
+    boost::shared_ptr<caffe::Net<float> > reseau;
+    reseau.reset(new caffe::Net<float>(modelTxt, caffe::TEST));
+    reseau->CopyTrainedLayersFrom(modelBin);
 
 
     
     for (int i = 0; i < 10; i++)
     {
-        caffe::Blob<float> *input_layer = net_->input_blobs()[0];
+        caffe::Blob<float> *input_layer = reseau->input_blobs()[0];
         int numChannels = input_layer->channels();
         cv::Size inputGeometry = cv::Size(input_layer->width(), input_layer->height());
         input_layer->Reshape(1, numChannels,inputGeometry.height, inputGeometry.width);
@@ -76,18 +76,65 @@ int main(int argc, char **argv)
         float* input_data = input_layer->mutable_cpu_data();
         memcpy(input_data,digitFloat.data,  28 * 28 * 4);
         
-        net_->Forward();
-
+        reseau->Forward();
         /* Copy the output layer to a std::vector */
-        caffe::Blob<float>* output_layer = net_->output_blobs()[0];
+        caffe::Blob<float>* output_layer = reseau->output_blobs()[0];
         const float* begin = output_layer->cpu_data();
         const float* end = begin + output_layer->channels();
         for (auto &item = begin; item != end; item++)
             cout << *item << " ";
         cout << "\n";
     }
+    vector<string> nomCouche;
+    vector<string> nomBlob;
 
-//    caffe::Blob<float>* input_layer = net_->input_blobs()[0];
+    nomCouche = reseau->layer_names();
+    nomBlob = reseau->blob_names();
+    FileStorage fs;
+    fs.open("weights.yml", FileStorage::WRITE);
+
+    for (auto &nom : nomCouche)
+    {
+        const boost::shared_ptr<caffe::Layer<float> > &conv_layer= reseau->layer_by_name(nom);
+        fs << "Nom" << nom;
+        fs << "Type" << conv_layer->type();
+        if (conv_layer->blobs().size() > 0)
+        {
+            boost::shared_ptr<caffe::Blob<float> >& weight = conv_layer->blobs()[0];
+            float* conv_weight = weight->mutable_cpu_data();
+            if (fs.isOpened())
+            {
+                vector<int> s = weight->shape();
+                for (int i = 0; i < s[0]; i++)
+                {
+                    for (int j = 0; j < s[1]; j++)
+                    {
+                        fs << format("w%d%d", i, j);
+                        Mat a(s[2], s[3], CV_32FC1, conv_weight + s[2] * s[3] * s[1] * i + s[2] * s[3] * j);
+                        fs << a;
+                    }
+                }
+
+            }
+            if (conv_layer->blobs().size() > 0) 
+            {
+                boost::shared_ptr<caffe::Blob<float> >& bias = conv_layer->blobs()[1];
+                float* conv_bias = bias->mutable_cpu_data();
+                if (fs.isOpened())
+                {
+                    vector<int> s = bias->shape();
+                    for (int i = 0; i < s[0]; i++)
+                    {
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    }
 
 
     dnn::Net net;
