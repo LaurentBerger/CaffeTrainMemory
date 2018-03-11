@@ -14,6 +14,7 @@ FOREACH( mesdossiers
        LeNet
        LeNetAndShape
 	 LeNetDisplayStruct
+	 CompareLeNet
     )
 
     ADD_SUBDIRECTORY(${mesdossiers})

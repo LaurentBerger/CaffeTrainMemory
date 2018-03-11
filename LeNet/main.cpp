@@ -19,19 +19,22 @@ void Lsb2Msb(type &a)
         swap(x[i], x[nb-i-1]);
 }
 
-void MnistToMat(char *nameData, char *nameLabel, vector<Mat> &trainImages, std::vector<uint> &labels, bool display = false);
+void MnistToMat(char *nameData, char *nameLabel, vector<Mat> &trainImages, std::vector<uint> &labels,int nb, bool display = false);
 void VectorMat2VectorFloat(vector<Mat> img, vector<uint> lab, vector<float> &data, vector<float> &label);
 
 const String keys =
 "{Aide h usage ? help  |     | Afficher ce message   }"
-"{solver or model prototxt s    |lenet_solverleger.prototxt     | solver param }"
+"{solver or model prototxt s    |lenet_solverleger10.prototxt     | solver param }"
 "{train model t     |1     | train model }"
 "{ m model name    |     | model name }"
 "{ b binary name    |     | binary name }"
+"{ c binary name    |  10   | number of class }"
 ;
 
 int main(int argc, char **argv)
 {
+
+
     CommandLineParser parser(argc, argv, keys);
     if (parser.has("help"))
     {
@@ -39,12 +42,13 @@ int main(int argc, char **argv)
         return 0;
     }
     String solverParamName = parser.get<String>("s");
+    int nbLabels;
+    nbLabels = parser.get<int>("c");
     bool TrainIsNeeded;
     if (parser.get<int>("t"))
         TrainIsNeeded = true;
     else
         TrainIsNeeded = false;
-
 
     caffe::Caffe::set_mode(caffe::Caffe::CPU);
     vector<Mat> trainImages;
@@ -53,8 +57,8 @@ int main(int argc, char **argv)
     vector<uint> testLabels;
 
     cv::ocl::setUseOpenCL(false);
-    MnistToMat("G:\\Lib\\caffeOLD\\data\\mnist\\train-images-idx3-ubyte", "G:\\Lib\\caffeOLD\\data\\mnist\\train-labels-idx1-ubyte",trainImages, trainLabels);
-    MnistToMat("G:\\Lib\\caffeOLD\\data\\mnist\\t10k-images-idx3-ubyte", "G:\\Lib\\caffeOLD\\data\\mnist\\t10k-labels-idx1-ubyte", testImages, testLabels);
+    MnistToMat("G:\\Lib\\caffeOLD\\data\\mnist\\train-images-idx3-ubyte", "G:\\Lib\\caffeOLD\\data\\mnist\\train-labels-idx1-ubyte",trainImages, trainLabels,nbLabels);
+    MnistToMat("G:\\Lib\\caffeOLD\\data\\mnist\\t10k-images-idx3-ubyte", "G:\\Lib\\caffeOLD\\data\\mnist\\t10k-labels-idx1-ubyte", testImages, testLabels, nbLabels);
     if (trainImages.size() == 0 || trainImages.size() != trainLabels.size() || testImages.size() == 0 || testImages.size() != testLabels.size())
     {
         cout << "Error reading data or test file\n";
@@ -62,6 +66,12 @@ int main(int argc, char **argv)
     }
     int nbItems = trainImages.size();
     int nbTests = testImages.size();
+    trainImages.resize((nbItems / 50) * 50);
+    trainLabels.resize((nbItems / 50) * 50);
+    testImages.resize((nbTests / 50) * 50);
+    testLabels.resize((nbTests / 50) * 50);
+    nbItems = trainImages.size();
+    nbTests = testImages.size();
 
     vector<float> data, dataTest;
     vector<float> label, labelTest;
@@ -102,8 +112,8 @@ int main(int argc, char **argv)
         for (int i = 0; i < 50; i++)
         {
             cout << i <<  " <_> " << testLabels[i]<<" ";
-            for (int j=0;j<10;j++)
-                cout << begin[i*10+j]<<" " ;
+            for (int j=0;j<nbLabels;j++)
+                cout << begin[i*nbLabels +j]<<" " ;
             cout << endl;
         }
     
@@ -181,7 +191,7 @@ void VectorMat2VectorFloat(vector<Mat> img, vector<uint> lab, vector<float> &dat
 }
 
 
-void MnistToMat(char *nameData,char *nameLabel,vector<Mat> &trainImages, std::vector<uint> &labels, bool display)
+void MnistToMat(char *nameData,char *nameLabel,vector<Mat> &trainImages, std::vector<uint> &labels,int nb, bool display)
 {
     ifstream fMnistTrain, fMnistLabel;
 
@@ -207,22 +217,22 @@ void MnistToMat(char *nameData,char *nameLabel,vector<Mat> &trainImages, std::ve
     Lsb2Msb(nbRows);
     Lsb2Msb(nbCols);
     std::vector<cv::Mat> ;
-    for (int i = 0; i < nbItems; i++)
-    {
-        cv::Mat x(nbRows, nbCols, CV_8UC1);
-        fMnistTrain.read((char*)x.data, nbRows* nbCols);
-        trainImages.push_back(x);
-    }
     int nbLabels;
     fMnistLabel.read((char*)&magicNumber, 4);
     fMnistLabel.read((char*)&nbLabels, 4);
     Lsb2Msb(nbLabels);
-
     for (int i = 0; i < nbItems; i++)
     {
         uchar c;
+        cv::Mat x(nbRows, nbCols, CV_8UC1);
         fMnistLabel.read((char*)&c, 1);
-        labels.push_back(c);
+        fMnistTrain.read((char*)x.data, nbRows* nbCols);
+        if (c < nb)
+        {
+            labels.push_back(c);
+            trainImages.push_back(x);
+
+        }
         if (i % 1000 == 0 && display)
         {
             imshow(format("Img %d", c), trainImages[i]);

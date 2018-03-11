@@ -92,7 +92,8 @@ int main(int argc, char **argv)
     nomBlob = reseau->blob_names();
     FileStorage fs;
     fs.open("weights.yml", FileStorage::WRITE);
-
+    string searchName("conv1");
+    vector<Mat> selectFilter;
     for (auto &nom : nomCouche)
     {
         const boost::shared_ptr<caffe::Layer<float> > &conv_layer= reseau->layer_by_name(nom);
@@ -106,27 +107,94 @@ int main(int argc, char **argv)
             if (fs.isOpened())
             {
                 vector<int> s = weight->shape();
-                fs << "Shape" << s;
-                for (int i = 0; i < s[0]; i++)
+                fs << "WeightsShape" << s;
+                switch(s.size())
                 {
-                    for (int j = 0; j < s[1]; j++)
+                case 1:
+                {
+                    fs << "M";
+                    Mat a(s[0], 1, CV_32FC1, conv_weight );
+                    fs << a;
+                    break;
+
+                }
+                case 2 :
+                {
+                    fs << "M";
+                    Mat a(s[0], s[1], CV_32FC1, conv_weight );
+                    fs << a;
+                }
+                    break;
+                case 3:
+                    for (int i = 0; i < s[0]; i++)
                     {
-                        fs << format("M%dX%d", i, j);
-                        Mat a(s[2], s[3], CV_32FC1, conv_weight + s[2] * s[3] * s[1] * i + s[2] * s[3] * j);
+                        fs << format("M%d", i);
+                        Mat a(s[1], s[2], CV_32FC1, conv_weight + s[2] * s[3] * i );
                         fs << a;
                     }
+                    break;
+                case 4:
+             
+                    for (int i = 0; i < s[0]; i++)
+                    {
+                        for (int j = 0; j < s[1]; j++)
+                        {
+                            fs << format("M%dX%d", i, j);
+                            Mat a(s[2], s[3], CV_32FC1, conv_weight + s[2] * s[3] * s[1] * i + s[2] * s[3] * j);
+                            fs << a;
+                            if (nom == searchName)
+                                selectFilter.push_back(a.clone());
+                        }
+                    }
+                    break;
+
                 }
 
             }
-            if (conv_layer->blobs().size() > 0) 
+            if (conv_layer->blobs().size() > 1) 
             {
                 boost::shared_ptr<caffe::Blob<float> >& bias = conv_layer->blobs()[1];
                 float* conv_bias = bias->mutable_cpu_data();
                 if (fs.isOpened())
                 {
                     vector<int> s = bias->shape();
-                    for (int i = 0; i < s[0]; i++)
+                    fs << "BiasShape" << s;
+                    switch (s.size())
                     {
+                    case 1:
+                    {
+                        fs << "B";
+                        Mat a(s[0], 1, CV_32FC1, conv_bias);
+                        fs << a;
+                        break;
+
+                    }
+                    case 2:
+                    {
+                        fs << "B";
+                        Mat a(s[0], s[1], CV_32FC1, conv_bias);
+                        fs << a;
+                    }
+                    break;
+                    case 3:
+                        for (int i = 0; i < s[0]; i++)
+                        {
+                            fs << format("B%d", i);
+                            Mat a(s[1], s[2], CV_32FC1, conv_bias + s[2] * s[3] * i);
+                            fs << a;
+                        }
+                        break;
+                    case 4:
+                        for (int i = 0; i < s[0]; i++)
+                        {
+                            for (int j = 0; j < s[1]; j++)
+                            {
+                                fs << format("B%dX%d", i, j);
+                                Mat a(s[2], s[3], CV_32FC1, conv_bias + s[2] * s[3] * s[1] * i + s[2] * s[3] * j);
+                                fs << a;
+                            }
+                        }
+                        break;
 
                     }
 
@@ -140,7 +208,18 @@ int main(int argc, char **argv)
 
     }
 
-
+    if (selectFilter.size() != 0)
+    {
+        int ind = 0;
+        for (auto &img : selectFilter)
+        {
+            Mat x(256, 256, CV_32FC1,Scalar(0));
+            img.copyTo(x(Rect(Point(0, 0), Size(img.cols, img.rows))));
+            FileStorage fs(format("img%d.yml", ind++),FileStorage::WRITE);
+            fs << "Image" << x;
+            fs.release();
+        }
+    }
     dnn::Net net;
     try {
         net = dnn::readNetFromCaffe(modelTxt, modelBin);
