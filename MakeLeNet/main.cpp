@@ -198,6 +198,9 @@ caffe::NetParameter ModifyNet(string nomFichier,T &y,string layerName,int numOut
 
 int main(int argc, char **argv)
 {
+    // DISABLE GLOG
+    google::InitGoogleLogging(argv[0]);
+    //google::SetCommandLineOption("GLOG_minloglevel", "4");
     GOOGLE_PROTOBUF_VERIFY_VERSION;
     caffe::Caffe::set_mode(caffe::Caffe::CPU);
 
@@ -231,7 +234,7 @@ int main(int argc, char **argv)
     VectorMat2VectorFloat(testImages, testLabels, dataTest, labelTest);
 
 
-    for (int numOutput = 1; numOutput < 10; numOutput++)
+    for (int numOutput = 1; numOutput < 2; numOutput++)
     {
 
         caffe::ConvolutionParameter x;
@@ -255,12 +258,12 @@ int main(int argc, char **argv)
 //        *solver_param.mutable_net() = nomFichier;
         solver_param.add_test_iter(1);
         solver_param.set_test_iter(0, 200);
-        solver_param.set_test_interval(100);
+        solver_param.set_test_interval(1000);
         solver_param.set_base_lr(0.01);
         solver_param.set_momentum(0.9);
         solver_param.set_gamma(0.0001);
         solver_param.set_power(0.75);
-        solver_param.set_max_iter(300);
+        solver_param.set_max_iter(1000);
 
 
 
@@ -288,17 +291,13 @@ int main(int argc, char **argv)
 
         testnet->ShareTrainedLayersWith(solver->net().get());
         caffe::MemoryDataLayer<float> *dataLayer_testnet = (caffe::MemoryDataLayer<float> *) (testnet->layer_by_name("test_inputdata").get());
-        dataLayer_testnet->Reset(dataTest.data(), labelTest.data(), 50);
+        dataLayer_testnet->Reset(dataTest.data(), labelTest.data(), 10000);
         testnet->Forward();
         boost::shared_ptr<caffe::Blob<float> > output_layer = testnet->blob_by_name("ip2");
-        const float* begin = output_layer->cpu_data();
-        for (int i = 0; i < 50; i++)
-        {
-            cout << i <<  " <_> " << testLabels[i]<<" ";
-            for (int j=0;j<nbLabels;j++)
-                cout << begin[i*nbLabels +j]<<" " ;
-            cout << endl;
-        }
+        boost::shared_ptr<caffe::Blob<float> > loss_layer = testnet->blob_by_name("loss");
+        boost::shared_ptr<caffe::Blob<float> > accuracy_layer = testnet->blob_by_name("accuracy");
+        cout << *accuracy_layer->cpu_data() << "\n";
+        cout << *loss_layer->cpu_data() << "\n";
     
     }
 
