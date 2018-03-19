@@ -19,7 +19,6 @@ const String keys =
 
 int main(int argc, char **argv)
 {
-    cv::ocl::setUseOpenCL(false);
     caffe::Caffe::set_mode(caffe::Caffe::CPU);
 
 

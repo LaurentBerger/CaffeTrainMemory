@@ -5,8 +5,15 @@
 #include <opencv2/dnn.hpp>
 #include <opencv2/core/ocl.hpp>
 #include <fstream>
+
 #include "caffe/layers/memory_data_layer.hpp"
 #include "caffe/layers/conv_layer.hpp"
+#include "caffe/proto/caffe.pb.h"
+#include "caffe/util/io.hpp"
+
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <google/protobuf/text_format.h>
 
 using namespace std;
 using namespace cv;
@@ -32,10 +39,150 @@ const String keys =
 "{ c binary name    |  10   | number of class }"
 ;
 
+
+using google::protobuf::io::FileInputStream;
+using google::protobuf::io::FileOutputStream;
+using google::protobuf::io::ZeroCopyInputStream;
+using google::protobuf::io::CodedInputStream;
+using google::protobuf::io::ZeroCopyOutputStream;
+using google::protobuf::io::CodedOutputStream;
+using google::protobuf::Message;
+int main2() {
+    caffe::NetParameter param;
+    caffe::NetParameter param2;
+
+    caffe::LayerParameter lparam;
+    caffe::LayerParameter *lparam2;
+    const char * filename = "lenet_train_Leger10.prototxt";
+    fstream fd(filename, ios::binary|ios::in);
+    google::protobuf::io::IstreamInputStream input1(&fd);
+    if (!fd.is_open())
+        cout << "File not found: " << filename;
+    bool success = google::protobuf::TextFormat::Parse(&input1, &param);
+    cout << "Network Name: " << param.name() << endl;
+    if (param.input_size()!=0)
+        cout << "Input: " << param.input(0) << endl;
+    for (int j = 0; j < param.input_dim_size(); j++) {
+        cout << "Input Dim " << j << ": " << param.input_dim(j) << endl;
+    }
+    cout << "Number of Layers (in implementation): " << param.layer_size() << endl << endl;
+    for (int nlayers = 0; nlayers < param.layer_size(); nlayers++) {
+        lparam = param.layer(nlayers);
+        
+
+        cout << endl << "Parameters for Layer " << nlayers + 1 << ":" << endl;
+        cout << "Name: " << lparam.name() << endl;
+        cout << "Type: " << lparam.type() << endl;
+        for (int num_bottom_layers = 0; num_bottom_layers < lparam.bottom_size(); num_bottom_layers++) 
+        {
+            cout << "Bottom: " << lparam.bottom(num_bottom_layers) << endl;
+        }
+        for (int num_top_layers = 0; num_top_layers < lparam.top_size(); num_top_layers++) 
+        {
+            cout << "Top: " << lparam.top(num_top_layers) << endl;
+        }
+        for (int i = 0; i < lparam.param_size(); i++) 
+        {
+            cout << "LR_MULT: " << lparam.param(i).lr_mult() << endl;
+            cout << "decay_MULT: " << lparam.param(i).decay_mult() << endl;
+        }
+        if (lparam.has_convolution_param()) 
+        {
+            boost::shared_ptr<caffe::ConvolutionParameter> x(new caffe::ConvolutionParameter(lparam.convolution_param()));
+            for (int kSize = 0; kSize < lparam.convolution_param().pad().size(); kSize++)
+            {
+                cout << "Pad: " << lparam.convolution_param().pad(kSize) << endl;
+            }
+            for (int kSize = 0; kSize < lparam.convolution_param().stride().size(); kSize++)
+            {
+                cout << "Stride: " << lparam.convolution_param().stride(kSize) << endl;
+            }
+            cout << "Kernel Size: " << lparam.convolution_param().kernel_size().size() << endl;
+            cout << "Number of Outputs: " << lparam.convolution_param().num_output() << endl;
+            cout << "Group: " << lparam.convolution_param().group() << endl;
+        }
+        if (lparam.has_lrn_param()) 
+        {
+            cout << "Local Size: " << lparam.lrn_param().local_size() << endl;
+            cout << "Alpha: " << lparam.lrn_param().alpha() << endl;
+            cout << "Beta: " << lparam.lrn_param().beta() << endl;
+        }
+        if (lparam.has_pooling_param()) 
+        {
+            cout << "Pool: " << lparam.pooling_param().pool() << endl;
+            cout << "Kernel Size: " << lparam.pooling_param().kernel_size() << endl;
+            cout << "Stride: " << lparam.pooling_param().stride() << endl;
+        }
+        if (lparam.has_inner_product_param()) 
+        {
+            cout << "Number of Outputs: " << lparam.inner_product_param().num_output() << endl;
+            if (nlayers == 2)
+            {
+                google::protobuf::uint32 x = 12;
+                lparam.convolution_param(); 
+
+            }
+        }
+        if (lparam.has_dropout_param()) 
+        {
+            cout << "Dropout Ratio: " << lparam.dropout_param().dropout_ratio() << endl;
+        }
+    }
+    //close(fd);
+    param2.set_name("toto.prototxt");
+
+    return 0;
+}
+
+int CopyNet(string nomFichier) {
+    caffe::NetParameter param;
+    caffe::NetParameter param2;
+
+    fstream fd(nomFichier.c_str(), ios::binary | ios::in);
+    google::protobuf::io::IstreamInputStream input1(&fd);
+    if (!fd.is_open())
+        cout << "File not found: " << nomFichier;
+    bool success = google::protobuf::TextFormat::Parse(&input1, &param);
+    for (int kSize = 0; kSize < param.input_size(); kSize++)
+    {
+        *param2.add_input() = param.input(kSize);
+    }
+    for (int j = 0; j < param.input_dim_size(); j++) 
+    {
+        param2.add_input_dim(param.input_dim(j));
+    }
+    param2.set_name(param.name());
+    for (int nlayers = 0; nlayers < param.layer_size(); nlayers++) 
+    {
+        caffe::LayerParameter *couche = new caffe::LayerParameter(param.layer(nlayers));
+        if (couche->name() == "conv1")
+        {
+            caffe::ConvolutionParameter *x= new caffe::ConvolutionParameter(*couche->mutable_convolution_param()); 
+            x->set_num_output(4);
+            couche->set_allocated_convolution_param(x);
+
+        }
+        *param2.add_layer() = *couche;
+    }
+    string s;
+    fstream f("toto.prototxt",  ios::out);
+    google::protobuf::TextFormat::PrintToString(param2, &s);
+    f.write(s.c_str(), s.length());
+    return 0;
+}
+
+
 int main(int argc, char **argv)
 {
+    caffe::Caffe::set_mode(caffe::Caffe::CPU);
+    {
+    GOOGLE_PROTOBUF_VERIFY_VERSION;
+    main2();
+    CopyNet("lenet_train_Leger10.prototxt");
+    return 0;
+    }
 
-
+    
     CommandLineParser parser(argc, argv, keys);
     if (parser.has("help"))
     {
@@ -51,8 +198,7 @@ int main(int argc, char **argv)
     else
         TrainIsNeeded = false;
 
-    caffe::Caffe::set_mode(caffe::Caffe::CPU);
-    vector<Mat> trainImages;
+     vector<Mat> trainImages;
     vector<uint> trainLabels;
     vector<Mat> testImages;
     vector<uint> testLabels;
@@ -82,12 +228,20 @@ int main(int argc, char **argv)
     if (TrainIsNeeded)
     {
         caffe::ReadSolverParamsFromTextFileOrDie(solverParamName, &solver_param);
+
+
+//        fstream fs(solver_param.net);
+//        protobuf_caffe_2eproto::
+
+
         boost::shared_ptr<caffe::Solver<float> > solver(caffe::SolverRegistry<float>::CreateSolver(solver_param));
+
+
         caffe::MemoryDataLayer<float> *dataLayer_trainnet = (caffe::MemoryDataLayer<float> *) (solver->net()->layer_by_name("data").get());
         caffe::MemoryDataLayer<float> *dataLayer_testnet_ = (caffe::MemoryDataLayer<float> *) (solver->test_nets()[0]->layer_by_name("test_inputdata").get());
         caffe::MemoryDataLayer<float> *dataLayer_conv1 = (caffe::MemoryDataLayer<float> *) (solver->net()->layer_by_name("conv1").get());
         caffe::ConvolutionLayer<float> *x= (caffe::ConvolutionLayer<float> *)dataLayer_conv1;
-
+        int nb=solver->net()->num_outputs();
         int d2 = dataLayer_conv1->height();
         int d3 = dataLayer_conv1->width();
         dataLayer_conv1->blobs();
