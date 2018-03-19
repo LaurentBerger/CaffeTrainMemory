@@ -134,7 +134,8 @@ int main2() {
     return 0;
 }
 
-int CopyNet(string nomFichier) {
+caffe::NetParameter CopyNet(string nomFichier) 
+{
     caffe::NetParameter param;
     caffe::NetParameter param2;
 
@@ -155,55 +156,59 @@ int CopyNet(string nomFichier) {
     for (int nlayers = 0; nlayers < param.layer_size(); nlayers++) 
     {
         caffe::LayerParameter *couche = new caffe::LayerParameter(param.layer(nlayers));
-        if (couche->name() == "conv1")
-        {
-            caffe::ConvolutionParameter *x= new caffe::ConvolutionParameter(*couche->mutable_convolution_param()); 
-            x->set_num_output(4);
-            couche->set_allocated_convolution_param(x);
+        *param2.add_layer() = *couche;
+    }
+    string s;
+    return param2;
+}
 
+template <typename T>
+caffe::NetParameter ModifyNet(string nomFichier,T &y,string layerName,int numOutput)
+{
+    caffe::NetParameter param;
+    caffe::NetParameter param2;
+
+    fstream fd(nomFichier.c_str(), ios::binary | ios::in);
+    google::protobuf::io::IstreamInputStream input1(&fd);
+    if (!fd.is_open())
+        cout << "File not found: " << nomFichier;
+    bool success = google::protobuf::TextFormat::Parse(&input1, &param);
+    for (int kSize = 0; kSize < param.input_size(); kSize++)
+    {
+        *param2.add_input() = param.input(kSize);
+    }
+    for (int j = 0; j < param.input_dim_size(); j++)
+    {
+        param2.add_input_dim(param.input_dim(j));
+    }
+    param2.set_name(param.name());
+    for (int nlayers = 0; nlayers < param.layer_size(); nlayers++)
+    {
+        caffe::LayerParameter *couche = new caffe::LayerParameter(param.layer(nlayers));
+        if (couche->name() == layerName)
+        {
+            couche->mutable_convolution_param()->set_num_output(numOutput);
         }
         *param2.add_layer() = *couche;
     }
     string s;
-    fstream f("toto.prototxt",  ios::out);
-    google::protobuf::TextFormat::PrintToString(param2, &s);
-    f.write(s.c_str(), s.length());
-    return 0;
+    return param2;
 }
 
 
 int main(int argc, char **argv)
 {
-    caffe::Caffe::set_mode(caffe::Caffe::CPU);
-    {
     GOOGLE_PROTOBUF_VERIFY_VERSION;
-    main2();
-    CopyNet("lenet_train_Leger10.prototxt");
-    return 0;
-    }
+    caffe::Caffe::set_mode(caffe::Caffe::CPU);
 
-    
-    CommandLineParser parser(argc, argv, keys);
-    if (parser.has("help"))
-    {
-        parser.printMessage();
-        return 0;
-    }
-    String solverParamName = parser.get<String>("s");
-    int nbLabels;
-    nbLabels = parser.get<int>("c");
-    bool TrainIsNeeded;
-    if (parser.get<int>("t"))
-        TrainIsNeeded = true;
-    else
-        TrainIsNeeded = false;
-
-     vector<Mat> trainImages;
+    vector<Mat> trainImages;
     vector<uint> trainLabels;
     vector<Mat> testImages;
     vector<uint> testLabels;
+    int nbLabels=10;
+    bool TrainIsNeeded = true;
 
-    MnistToMat("G:\\Lib\\caffeOLD\\data\\mnist\\train-images-idx3-ubyte", "G:\\Lib\\caffeOLD\\data\\mnist\\train-labels-idx1-ubyte",trainImages, trainLabels,nbLabels);
+    MnistToMat("G:\\Lib\\caffeOLD\\data\\mnist\\train-images-idx3-ubyte", "G:\\Lib\\caffeOLD\\data\\mnist\\train-labels-idx1-ubyte", trainImages, trainLabels, nbLabels);
     MnistToMat("G:\\Lib\\caffeOLD\\data\\mnist\\t10k-images-idx3-ubyte", "G:\\Lib\\caffeOLD\\data\\mnist\\t10k-labels-idx1-ubyte", testImages, testLabels, nbLabels);
     if (trainImages.size() == 0 || trainImages.size() != trainLabels.size() || testImages.size() == 0 || testImages.size() != testLabels.size())
     {
@@ -222,16 +227,41 @@ int main(int argc, char **argv)
     vector<float> data, dataTest;
     vector<float> label, labelTest;
 
-    VectorMat2VectorFloat(trainImages, trainLabels,data,label);
+    VectorMat2VectorFloat(trainImages, trainLabels, data, label);
     VectorMat2VectorFloat(testImages, testLabels, dataTest, labelTest);
-    caffe::SolverParameter solver_param;
-    if (TrainIsNeeded)
+
+
+    for (int numOutput = 1; numOutput < 10; numOutput++)
     {
-        caffe::ReadSolverParamsFromTextFileOrDie(solverParamName, &solver_param);
+
+        caffe::ConvolutionParameter x;
+        caffe::NetParameter net2 = ModifyNet("lenet_train_Leger.prototxt", x, "conv1", numOutput);
 
 
-//        fstream fs(solver_param.net);
-//        protobuf_caffe_2eproto::
+        string nomFichier(format("lenet_conv1_%d.prototxt", numOutput)),s;
+        fstream f(nomFichier.c_str(), ios::out);
+        google::protobuf::TextFormat::PrintToString(net2, &s);
+        f.write(s.c_str(), s.length());
+        f.flush();
+        f.close();
+
+    
+
+        caffe::SolverParameter solver_param1,solver_param;
+
+        caffe::ReadSolverParamsFromTextFileOrDie("lenet_solver.prototxt", &solver_param1);
+        (*solver_param.mutable_net_param()) = net2;
+        *solver_param.mutable_lr_policy() = "inv";
+//        *solver_param.mutable_net() = nomFichier;
+        solver_param.add_test_iter(1);
+        solver_param.set_test_iter(0, 200);
+        solver_param.set_test_interval(100);
+        solver_param.set_base_lr(0.01);
+        solver_param.set_momentum(0.9);
+        solver_param.set_gamma(0.0001);
+        solver_param.set_power(0.75);
+        solver_param.set_max_iter(300);
+
 
 
         boost::shared_ptr<caffe::Solver<float> > solver(caffe::SolverRegistry<float>::CreateSolver(solver_param));
@@ -239,13 +269,6 @@ int main(int argc, char **argv)
 
         caffe::MemoryDataLayer<float> *dataLayer_trainnet = (caffe::MemoryDataLayer<float> *) (solver->net()->layer_by_name("data").get());
         caffe::MemoryDataLayer<float> *dataLayer_testnet_ = (caffe::MemoryDataLayer<float> *) (solver->test_nets()[0]->layer_by_name("test_inputdata").get());
-        caffe::MemoryDataLayer<float> *dataLayer_conv1 = (caffe::MemoryDataLayer<float> *) (solver->net()->layer_by_name("conv1").get());
-        caffe::ConvolutionLayer<float> *x= (caffe::ConvolutionLayer<float> *)dataLayer_conv1;
-        int nb=solver->net()->num_outputs();
-        int d2 = dataLayer_conv1->height();
-        int d3 = dataLayer_conv1->width();
-        dataLayer_conv1->blobs();
-//        (*((caffe::BaseConvolutionLayer<float>*)&(*((caffe::ConvolutionLayer<float>*)dataLayer_conv1)))).num_output_ = 10
 
         dataLayer_testnet_->Reset(dataTest.data(), labelTest.data(), testImages.size());
 
@@ -255,13 +278,13 @@ int main(int argc, char **argv)
 
         caffe::NetParameter net_param;
         solver->net()->ToProto(&net_param);
-        caffe::WriteProtoToBinaryFile(net_param, solver_param.net() +".binary");
-        caffe::WriteProtoToTextFile(net_param, solver_param.net() +".txt");
+        caffe::WriteProtoToBinaryFile(net_param, nomFichier +".binary");
+        caffe::WriteProtoToTextFile(net_param, nomFichier +".txt");
         
 
 
         boost::shared_ptr<caffe::Net<float> > testnet;
-        testnet.reset(new caffe::Net<float>(solver_param.net(), caffe::TEST));
+        testnet.reset(new caffe::Net<float>(nomFichier, caffe::TEST));
 
         testnet->ShareTrainedLayersWith(solver->net().get());
         caffe::MemoryDataLayer<float> *dataLayer_testnet = (caffe::MemoryDataLayer<float> *) (testnet->layer_by_name("test_inputdata").get());
@@ -280,57 +303,6 @@ int main(int argc, char **argv)
     }
 
 
-    String modelTxt;// ("lenetleger.prototxt");
-    String modelBin;// ("lenetleger.binary");
-    if (TrainIsNeeded)
-    {
-        modelTxt = solver_param.net() + ".prototxt";
-        modelBin = solver_param.net() + ".binary";
-    }
-    else
-    {
-        modelTxt = parser.get<String>("m");;
-        modelBin = parser.get<String>("b");;
-    }
-
-    dnn::Net net;
-    try {
-        net = dnn::readNetFromCaffe(modelTxt, modelBin);
-    }
-    catch (const cv::Exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-        if (net.empty())
-        {
-            std::cerr << "Can't load network by using the following files: " << std::endl;
-            std::cerr << "prototxt:   " << modelTxt << std::endl;
-            std::cerr << "caffemodel: " << modelBin << std::endl;
-            exit(-1);
-        }
-    }
-
-    int ind = 4;
-    Mat img = testImages[ind];
-    
-    Mat inputBlob = dnn::blobFromImage(img, 1 / 256.0,Size(),-0.1);
-    net.setInput(inputBlob, "data");        //set the network input
-    Mat prob = net.forward();         //compute output
-    cout << prob << "\n";
-    vector<Mat> b;
-    net.setInput(inputBlob, "data");        //set the network input
-    Ptr<dnn::Layer> l = net.getLayer("conv1");
-    vector<Mat> bb = l->blobs;
-    net.forward(b,"conv1");
-    for (int i = 0; i < bb[1].rows; i++)
-    {
-        Mat x(24, 24, CV_32FC1, b[0].data + 24 * 24 * 4 * i);
-        Mat y;
-        normalize(x, y, 255, 0, NORM_MINMAX);
-        Mat z;
-        y.convertTo(z, CV_8U);
-        imshow("z", z);
-        waitKey(0);
-    }
-    cout << labelTest[ind];
     return 0;
 }
 
