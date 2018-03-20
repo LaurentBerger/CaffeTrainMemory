@@ -198,10 +198,9 @@ caffe::NetParameter ModifyNet(string nomFichier,T &y,string layerName,int numOut
 
 int main(int argc, char **argv)
 {
-    // DISABLE GLOG
-    google::InitGoogleLogging(argv[0]);
-    //google::SetCommandLineOption("GLOG_minloglevel", "4");
     GOOGLE_PROTOBUF_VERIFY_VERSION;
+    FLAGS_alsologtostderr = 0;
+    ::google::InitGoogleLogging(argv[0]);
     caffe::Caffe::set_mode(caffe::Caffe::CPU);
 
     vector<Mat> trainImages;
@@ -234,7 +233,7 @@ int main(int argc, char **argv)
     VectorMat2VectorFloat(testImages, testLabels, dataTest, labelTest);
 
 
-    for (int numOutput = 1; numOutput < 2; numOutput++)
+    for (int numOutput = 4; numOutput < 5; numOutput++)
     {
 
         caffe::ConvolutionParameter x;
@@ -276,29 +275,56 @@ int main(int argc, char **argv)
         dataLayer_testnet_->Reset(dataTest.data(), labelTest.data(), testImages.size());
 
         dataLayer_trainnet->Reset(data.data(), label.data(), trainImages.size());
+        FLAGS_alsologtostderr = 1;
 
         solver->Solve();
+        for (int iter = 1000; iter < 10000; iter += 1000)
+        {
+            cout << "\n**********************************************************\n";
+            solver->Step(1000);
 
+        }
         caffe::NetParameter net_param;
         solver->net()->ToProto(&net_param);
-        caffe::WriteProtoToBinaryFile(net_param, nomFichier +".binary");
+        string snap(nomFichier + ".binary");
+        caffe::WriteProtoToBinaryFile(net_param, snap);
+
+        FLAGS_alsologtostderr = 0;
+
         caffe::WriteProtoToTextFile(net_param, nomFichier +".txt");
         
 
+        {
+            boost::shared_ptr<caffe::Net<float> > testnet;
+            testnet.reset(new caffe::Net<float>(nomFichier, caffe::TEST));
 
+            testnet->ShareTrainedLayersWith(solver->net().get());
+            caffe::MemoryDataLayer<float> *dataLayer_testnet = (caffe::MemoryDataLayer<float> *) (testnet->layer_by_name("test_inputdata").get());
+            dataLayer_testnet->Reset(dataTest.data(), labelTest.data(), 10000);
+            testnet->Forward();
+            boost::shared_ptr<caffe::Blob<float> > output_layer = testnet->blob_by_name("ip2");
+            boost::shared_ptr<caffe::Blob<float> > loss_layer = testnet->blob_by_name("loss");
+            boost::shared_ptr<caffe::Blob<float> > accuracy_layer = testnet->blob_by_name("accuracy");
+            cout << "acc =" << *accuracy_layer->cpu_data() << "\t";
+            cout << "loss = " << *loss_layer->cpu_data() << "\n";
+
+        }
+        {
         boost::shared_ptr<caffe::Net<float> > testnet;
         testnet.reset(new caffe::Net<float>(nomFichier, caffe::TEST));
 
         testnet->ShareTrainedLayersWith(solver->net().get());
         caffe::MemoryDataLayer<float> *dataLayer_testnet = (caffe::MemoryDataLayer<float> *) (testnet->layer_by_name("test_inputdata").get());
-        dataLayer_testnet->Reset(dataTest.data(), labelTest.data(), 10000);
+        dataLayer_testnet->Reset(dataTest.data(), labelTest.data(), 5000);
         testnet->Forward();
         boost::shared_ptr<caffe::Blob<float> > output_layer = testnet->blob_by_name("ip2");
         boost::shared_ptr<caffe::Blob<float> > loss_layer = testnet->blob_by_name("loss");
         boost::shared_ptr<caffe::Blob<float> > accuracy_layer = testnet->blob_by_name("accuracy");
-        cout << *accuracy_layer->cpu_data() << "\n";
-        cout << *loss_layer->cpu_data() << "\n";
-    
+        cout << "acc =" << *accuracy_layer->cpu_data() << "\t";
+        cout << "loss = " << *loss_layer->cpu_data() << "\n";
+
+        }
+
     }
 
 
