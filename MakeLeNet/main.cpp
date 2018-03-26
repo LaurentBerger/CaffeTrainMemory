@@ -543,15 +543,15 @@ void SaveWeightLayer(boost::shared_ptr<caffe::Net<float> > &reseau, string &sear
         int ind = 0;
         FileStorage fs(format("%s.yml", fileName.c_str()), FileStorage::APPEND);
         string step("iter" + to_string(iter));
-        fs << step << "{";
+        fs << step ;
+        fs << selectFilter;
         for (auto &img : selectFilter)
         {
             Mat x(256, 256, CV_32FC1, Scalar(0));
             img.copyTo(x(Rect(Point(0, 0), Size(img.cols, img.rows))));
             String nameIter = format("Image%d", ind++);
-            fs << nameIter << img;
+//            fs << nameIter << img;
         }
-        fs << "}";
         fs.release();
     }
 }

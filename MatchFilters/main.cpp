@@ -24,38 +24,65 @@ void main(void)
     // Structure N filtres par itération , M itération par fichiers, P réseaux filters[p][m][n]
     vector<vector<vector<Mat>>> filters;
 
-    FileStorage f;
-    f.open("test.yml", FileStorage::APPEND);
-    f << "a" << 28.54;
-    f.release();
-    f.open("test.yml", FileStorage::READ);
-    cout << " First read "<<float(f["a"]) << endl;
-    f.release();
-    f.open("test.yml", FileStorage::APPEND + FileStorage::WRITE);
-    f << "b" << 323.54;
-    f.release();
-    f.open("test.yml", FileStorage::APPEND + FileStorage::WRITE);
-    cout << " second read "<< float(f["a"]) << endl;
-    cout << " second read " << float(f["b"]) << endl;
-    f.release();
-
-
     glob("conv1o*.yml", fileNames);
     int nbIterRef = -1;
     int nbFilters = -1;
     for (auto file : fileNames)
     {
+        cout << "File : " << file << endl;
         FileStorage fs;
         fs.open(file, FileStorage::READ);
-        FileNode n = fs.root();
-        FileNodeIterator it = n.begin();
-        for (; it != n.end(); it++)
+        
+        int idxStream = 0;
+        FileNode n;
+        vector<vector<Mat>> w;
+        do
         {
-            //cout << it.readRaw( << endl;
-        }
-
+            n= fs.root(idxStream++);
+            if (!n.empty())
+            {
+                cout << n.name() <<" "<< n.type()<< endl;
+                FileNodeIterator it = n.begin();
+                vector<Mat> x;
+                for (; it != n.end(); it++)
+                {
+                    cout << (*it).name() << "\n";
+                    fs[(*it).name()]>>x;
+                }
+                w.push_back(x);
+            }
+        } 
+        while (!n.empty());
+        filters.push_back(w);
 
     }
+    for (int r = 0; r < filters.size(); r++)
+    {
 
+        for (int ite = 0; ite < filters[r].size(); ite++)
+        {
+            for (int idxFilter = 0; idxFilter < filters[r][ite].size(); idxFilter++)
+            {
+                double x = mean(filters[r][ite][idxFilter])[0];
+                double m = -1;
+                int idx = -1;
+                for (int k = 0; k < filters[i].size(); k++)
+                {
+                    double y = mean(filters[i][k])[0];
+                    Mat p;
+                    multiply(filters[i - 1][j] - x, filters[i][k] - y, p);
+                    y = sum(p)[0];
+                    if (y > m)
+                    {
+                        m = y;
+                        idx = k;
+                    }
+                }
+                cout << idx << "\t";
+
+            }
+        }
+        cout << "\n";
+    }
 
 }
