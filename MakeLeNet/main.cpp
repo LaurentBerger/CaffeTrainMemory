@@ -286,15 +286,19 @@ int main(int argc, char **argv)
         FLAGS_alsologtostderr = 1;
 
         solver->Solve();
-        string layerName("conv1");
-        string fileName(layerName + "o" + to_string(numOutput) + "_");
+        string layerName1("conv1");
+        string fileName1(layerName1 + "o" + to_string(numOutput) + "_");
+        string layerName2("conv2");
+        string fileName2(layerName2 + "o" + to_string(numOutput) + "_");
         int nbFile = 0;
-        SaveWeightLayer(solver->net(), layerName, fileName, nbFile++);
+        SaveWeightLayer(solver->net(), layerName1, fileName1, nbFile++);
+        SaveWeightLayer(solver->net(), layerName2, fileName2, nbFile++);
         for (int iter = 1000; iter < 40000; iter += iterStep)
         {
             cout << "\n**********************************************************\n";
             solver->Step(iterStep);
-            SaveWeightLayer(solver->net(), layerName, fileName, nbFile++);
+            SaveWeightLayer(solver->net(), layerName1, fileName1, nbFile++);
+            SaveWeightLayer(solver->net(), layerName2, fileName2, nbFile++);
 
         }
         caffe::NetParameter net_param;

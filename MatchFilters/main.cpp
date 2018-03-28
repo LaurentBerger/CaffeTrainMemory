@@ -24,7 +24,7 @@ void main(void)
     // Structure N filtres par itération , M itération par fichiers, P réseaux filters[p][m][n]
     vector<vector<vector<Mat>>> filters;
 
-    glob("conv1o*.yml", fileNames);
+    glob("conv2o*.yml", fileNames);
     int nbIterRef = -1;
     int nbFilters = -1;
     for (auto file : fileNames)
@@ -56,30 +56,49 @@ void main(void)
         filters.push_back(w);
 
     }
-    for (int r = 0; r < filters.size(); r++)
+    for (int ra = 0; ra < filters.size(); ra++)
     {
 
-        for (int ite = 0; ite < filters[r].size(); ite++)
+        for (int itea = filters[ra].size()-4; itea < filters[ra].size(); itea++)
         {
-            for (int idxFilter = 0; idxFilter < filters[r][ite].size(); idxFilter++)
+            for (int idxFiltera = 0; idxFiltera < filters[ra][itea].size(); idxFiltera++)
             {
-                double x = mean(filters[r][ite][idxFilter])[0];
-                double m = -1;
-                int idx = -1;
-                for (int k = 0; k < filters[i].size(); k++)
+                cout << "File " << fileNames[ra] << " ** Ite " << itea << "** Filter " << idxFiltera << "\n";
+                double x = mean(filters[ra][itea][idxFiltera])[0];
+                for (int rb = 0; rb < filters.size(); rb++)
                 {
-                    double y = mean(filters[i][k])[0];
-                    Mat p;
-                    multiply(filters[i - 1][j] - x, filters[i][k] - y, p);
-                    y = sum(p)[0];
-                    if (y > m)
+                    int idxFile = -1;
+                    for (int iteb = filters[rb].size()-4; iteb < filters[rb].size(); iteb++)
                     {
-                        m = y;
-                        idx = k;
-                    }
-                }
-                cout << idx << "\t";
+                        double m = -1;
+                        int idxIte = -1;
+                        for (int idxFilterb = 0; idxFilterb < filters[rb][iteb].size(); idxFilterb++)
+                        {
+                            double y = mean(filters[rb][iteb][idxFilterb])[0];
+                            Mat p;
+                            multiply(filters[ra][itea][idxFiltera] - x, filters[rb][iteb][idxFilterb] - y, p);
+                            y = sum(p)[0];
+                            if (y > m)
+                            {
+                                m = y;
+                                idxIte = idxFilterb;
+                            }
 
+                        }
+                        cout << idxIte << "\t";
+                        if (idxFile == -1)
+                            idxFile = idxIte;
+                        else
+                            if (idxFile != idxIte)
+                                idxFile = -2;
+                    }
+                    cout << "----> " << idxFile << "(" << fileNames[rb] << ")";
+                    if (idxFile == -2)
+                        cout << "++++++++++++++++++++++\n";
+                    else
+                        cout << "\n";
+                }
+                cout << "\n**************************************************************\n";
             }
         }
         cout << "\n";
