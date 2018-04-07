@@ -54,7 +54,7 @@ int main2() {
 
     caffe::LayerParameter lparam;
     caffe::LayerParameter *lparam2;
-    const char * filename = "lenet_train_Leger10.prototxt";
+    const char * filename = "lenet_train_simplifie.prototxt";
     fstream fd(filename, ios::binary | ios::in);
     google::protobuf::io::IstreamInputStream input1(&fd);
     if (!fd.is_open())
@@ -164,7 +164,7 @@ caffe::NetParameter CopyNet(string nomFichier)
 }
 
 template <typename T>
-caffe::NetParameter ModifyNet(string nomFichier, T &y, string layerName, int numOutput)
+caffe::NetParameter ModifyNet(string nomFichier, T &y, int nbFilter,string layerName, int numOutput)
 {
     caffe::NetParameter param;
     caffe::NetParameter param2;
@@ -193,7 +193,7 @@ caffe::NetParameter ModifyNet(string nomFichier, T &y, string layerName, int num
         }
         if (couche->name() == "conv1")
         {
-            couche->mutable_convolution_param()->set_num_output(4);
+            couche->mutable_convolution_param()->set_num_output(nbFilter);
         }
         *param2.add_layer() = *couche;
     }
@@ -244,10 +244,11 @@ int main(int argc, char **argv)
         VectorMat2VectorFloat(testImages, testLabels, dataTest, labelTest);
 
         caffe::ConvolutionParameter x;
-        caffe::NetParameter net2 = ModifyNet("lenet_train_Leger.prototxt", x, "ip2", numOutput);
+        int numFiltre = 8;
+        caffe::NetParameter net2 = ModifyNet("lenet_train_simplifie.prototxt", x,numFiltre, "ip1", numOutput);
 
 
-        string nomFichier(format("lenet_conv1_%d.prototxt", numOutput)), s;
+        string nomFichier(format("lenet_conv1-%d_%d.prototxt", numFiltre,numOutput)), s;
         fstream f(nomFichier.c_str(), ios::out);
         google::protobuf::TextFormat::PrintToString(net2, &s);
         f.write(s.c_str(), s.length());
@@ -287,7 +288,15 @@ int main(int argc, char **argv)
 
         solver->Solve();
         string layerName1("conv1");
-        string fileName1(layerName1 + "o" + to_string(numOutput) + "_");
+        string fileName1;
+        if (numFiltre<10)
+            fileName1 = layerName1 + "_0" + to_string(numFiltre) + "_";
+        else
+            fileName1 = layerName1 + "_" + to_string(numFiltre) + "_";
+        if (numOutput<10)
+            fileName1 = fileName1 + "o0" + to_string(numOutput) + "_";
+        else
+            fileName1 = fileName1 + "o" + to_string(numOutput) + "_";
         string layerName2("conv2");
         string fileName2(layerName2 + "o" + to_string(numOutput) + "_");
         int nbFile = 0;
@@ -426,7 +435,7 @@ void SaveWeightLayer(boost::shared_ptr<caffe::Net<float> > &reseau, string &sear
     nomCouche = reseau->layer_names();
     nomBlob = reseau->blob_names();
     FileStorage fs;
-    fs.open("weights.yml", FileStorage::WRITE);
+    fs.open(format("weights_%s.yml", fileName.c_str()), FileStorage::WRITE);
     vector<Mat> selectFilter;
     for (auto &nom : nomCouche)
     {
